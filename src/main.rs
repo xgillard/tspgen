@@ -62,7 +62,7 @@ impl TspGen {
         let init = self.seed.unwrap_or_else(|| SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis());
         let mut seed = [0_u8; 32];
         seed.iter_mut().zip(init.to_be_bytes().into_iter()).for_each(|(s, i)| *s = i);
-        seed.iter_mut().skip(16).zip(init.to_le_bytes().into_iter()).for_each(|(s, i)| *s = i);
+        seed.iter_mut().rev().zip(init.to_le_bytes().into_iter()).for_each(|(s, i)| *s = i);
         ChaChaRng::from_seed(seed)
     }
 
