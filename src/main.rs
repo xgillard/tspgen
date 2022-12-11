@@ -116,7 +116,7 @@ impl TspGen {
         let dx = dx * dx;
         let dy = dy * dy;
 
-        return ((dx + dy) as f32).sqrt()
+        ((dx + dy) as f32).sqrt()
     }
 }
 
