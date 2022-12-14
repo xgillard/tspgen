@@ -38,7 +38,6 @@ impl TspGen {
 
         let mut result = String::new();
         result.push_str("c This instance has been generated with tspgen \n");
-        result.push_str("c This instance has been generated with tspgen \n");
         result.push_str("c --- centroids -------------------------------\n");
         for c in centroids.iter() {
             result.push_str(&format!("c {:>3} {:>3}\n", c.x, c.y));
