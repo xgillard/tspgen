@@ -3,10 +3,10 @@ use std::{time::{UNIX_EPOCH, SystemTime}};
 use rand::prelude::*;
 use clap::Parser;
 use rand_chacha::ChaChaRng;
-use rand_distr::{Uniform, Normal, num_traits::ToPrimitive};
+use rand_distr::{Uniform, Normal};
 
 #[derive(Debug, Clone, Copy)]
-struct Position {x: usize, y: usize}
+struct Position {x: f32, y: f32}
 
 /// TspGen is a generator for realistic TSP instances where the cities to visit are gouped in clusters.
 #[derive(Debug, Parser)]
@@ -40,11 +40,11 @@ impl TspGen {
         result.push_str("c This instance has been generated with tspgen \n");
         result.push_str("c --- centroids -------------------------------\n");
         for c in centroids.iter() {
-            result.push_str(&format!("c {:>3} {:>3}\n", c.x, c.y));
+            result.push_str(&format!("c {:>7.2} {:>7.2}\n", c.x, c.y));
         }
         result.push_str("c --- cities ----------------------------------\n");
         for c in cities.iter() {
-            result.push_str(&format!("c {:>3} {:>3}\n", c.x, c.y));
+            result.push_str(&format!("c {:>7.2} {:>7.2}\n", c.x, c.y));
         }
         result.push_str("c --- distances -------------------------------\n");
         for a in cities.iter().copied() {
@@ -75,7 +75,7 @@ impl TspGen {
     }
     /// This method returns a new random centroid uniformly sampled from 0..max
     fn random_centroid(&self, rng: &mut impl Rng) -> Position {
-        let dist = Uniform::new_inclusive(0, self.max);
+        let dist = Uniform::new_inclusive(0 as f32, self.max as f32);
         let x = dist.sample(rng);
         let y = dist.sample(rng);
         Position { x, y }
@@ -102,8 +102,8 @@ impl TspGen {
     fn random_pos_close_to(&self, rng: &mut impl Rng, Position{x, y}: Position) -> Position {
         let dist_x = Normal::new(x as f32, self.std_dev as f32).expect("cannot create normal dist");
         let dist_y = Normal::new(y as f32, self.std_dev as f32).expect("cannot create normal dist");
-        let x = dist_x.sample(rng).round().to_usize().unwrap_or(0);
-        let y = dist_y.sample(rng).round().to_usize().unwrap_or(0);
+        let x = dist_x.sample(rng);
+        let y = dist_y.sample(rng);
         Position { x, y }
     }
     
@@ -115,7 +115,7 @@ impl TspGen {
         let dx = dx * dx;
         let dy = dy * dy;
 
-        ((dx + dy) as f32).sqrt()
+        (dx + dy).sqrt()
     }
 }
 
