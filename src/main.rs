@@ -1,11 +1,11 @@
-use std::{time::{UNIX_EPOCH, SystemTime}, fs::File, io::Write};
+use std::{time::{UNIX_EPOCH, SystemTime}, fs::File, io::Write, collections::HashMap};
 
-use osrm_client::{Location, TableRequestBuilder, NearestRequestBuilder, TableAnnotationRequest};
+use handlebars::no_escape;
+use osrm_client::{Location, TableRequestBuilder, NearestRequestBuilder, TableAnnotationRequest, TripRequestBuilder, Geometries, GeoJsonGeometry, GeoJsonPoint};
 use rand::prelude::*;
 use clap::Parser;
 use rand_chacha::ChaChaRng;
 use rand_distr::{Uniform, Normal};
-use serde_json::json;
 
 /// TspGen is a generator for realistic TSP instances where the cities to visit are gouped in clusters.
 /// 
@@ -43,9 +43,7 @@ struct TspGen {
     /// Name of the file where to generate the html visualisation of the instance
     #[clap(long)]
     html: Option<String>,
-    /// Zoom for the html output
-    #[clap(short, long, default_value="5")]
-    zoom: usize,
+    /// Force all destinations to be routable (takes longer to generate an instance)
     #[clap(short, long)]
     force_routable: bool,
 
@@ -83,7 +81,7 @@ impl Generation {
         result
     }
 
-    fn visualisation_text(&self, zoom: usize) -> String {
+    async fn visualisation_text(&self) -> String {
         let template = r#"
         <html>
             <head>
@@ -93,39 +91,115 @@ impl Generation {
                 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
                     integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM="
                     crossorigin=""></script>
+                <script src="./Polyline.encoded.js"></script>
             </head>
             <body>
                 <div id="map" style="height: 100%; width: 100%; ">
                 </div>
                 <script>
-                    var map = L.map('map').setView([{{center_lat}}, {{center_lon}}], {{zoom}});
+                    function markerIcon(name, color) {
+                        const myCustomColour   = '#583470';
+                        const markerHtmlStyles = `
+                            position:         relative;
+                            display:          block;
+                            width:            2rem;
+                            height:           2rem;
+                            border:           3px solid white;
+                            left:             -0.8rem;
+                            top:              -2.6rem;
+                            border-radius:    3rem 3rem 0;
+                            transform:        rotate(45deg);
+                            background-color: ${color};
+                            text-align:       center;
+                            `;
+                        const middleDot = `
+                            display: block; 
+                            position: relative;
+                            width: 5px; 
+                            height: 5px; 
+                            top: 0.75rem;
+                            left: 0.75rem;
+                            border-radius: 10px 10px 10px; 
+                            background-color: white; 
+                            border: 2px solid white;
+                        `;
+                        const icon = L.divIcon({
+                        className: name,
+                        html: `<div style="${markerHtmlStyles}">
+                                <div style="${middleDot}">
+                                </div>
+                                </div>`
+                        });
+                        return icon;
+                    }
 
+                    const centroidPin    = markerIcon('centroid-icon',    '#ff0000');
+                    const destinationPin = markerIcon('destination-icon', '#3366ff');
+
+                    var map = L.map('map');
                     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
                         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     }).addTo(map);
-                    
-                    {{markers}}
+
+                    // -- var centroids = L.geoJSON({{centroids}}, {
+                    // -- pointToLayer: function(feature, latlng) {
+                    // --     return L.marker(latlng, {icon: centroidPin});
+                    // -- },
+                    // -- });
+                    // -- centroids.addTo(map);
+
+                    var cities = L.geoJSON({{cities}}, {
+                    pointToLayer: function(feature, latlng) {
+                        return L.marker(latlng, {icon: destinationPin});
+                    },
+                    });
+                    cities.addTo(map);
+
+                    var trip = L.geoJSON({{trip}}, {"color": "red"});
+                    trip.addTo(map);
+
+                    map.fitBounds(cities.getBounds());
                 </script>
             </body>
         </html>
         "#;
 
-        let center_lat = self.centroids.iter().map(|l| l.latitude).sum::<f32>() / self.centroids.len() as f32;
-        let center_lon = self.centroids.iter().map(|l| l.longitude).sum::<f32>() / self.centroids.len() as f32;
+        // FIXME
+        let client = osrm_client::Client::default();
+        let tour = TripRequestBuilder::default()
+            .coordinates(osrm_client::Coordinates::Multi(self.destinations.clone()))
+            .roundtrip(true)
+            .geometries(Geometries::GeoJson)
+            .source(Some(osrm_client::Source::Any))
+            .destination(Some(osrm_client::Destination::Any))
+            .build()
+            .unwrap()
+            .send(&client)
+            .await
+            .unwrap();
         
-        let mut markers = String::new();
-        for Location { longitude, latitude } in self.destinations.iter() {
-            markers.push_str(&format!("L.marker([{latitude}, {longitude}]).addTo(map);\n"));
-        }
+        let trip = serde_json::to_string(&tour.trips.unwrap()[0].geometry).unwrap();
+        // FIXME
 
-        let handlerbars = handlebars::Handlebars::new();
-        handlerbars.render_template(template, &json!({
-            "zoom": zoom,
-            "center_lon": center_lon,
-            "center_lat": center_lat,
-            "markers": markers,
-        })).unwrap()
+        let centroids = serde_json::to_string(&GeoJsonGeometry::MultiPoint { 
+            coordinates: self.centroids.iter().copied().map(GeoJsonPoint::from).collect::<Vec<_>>()
+        }).unwrap();
+
+        let cities = serde_json::to_string(&GeoJsonGeometry::MultiPoint { 
+            coordinates: self.destinations.iter().copied().map(GeoJsonPoint::from).collect::<Vec<_>>()
+        }).unwrap();
+
+        let mut handlebars = handlebars::Handlebars::new();
+        handlebars.register_escape_fn(no_escape);
+        let mut template_params = HashMap::<&'static str, String>::default();
+
+        template_params.insert("trip",       trip);
+        template_params.insert("cities",     cities);
+        template_params.insert("centroids",  centroids);
+        template_params.insert("showCentroids", "false".to_string());
+
+        handlebars.render_template(template, &template_params).unwrap()
     }
 }
 
@@ -195,8 +269,8 @@ impl TspGen {
     }
     /// This method returns a new city close to the given centroid
     fn random_pos_close_to(&self, rng: &mut impl Rng, Location{longitude, latitude}: Location) -> Location {
-        let dist_x = Normal::new(longitude as f32, self.std_dev).expect("cannot create normal dist");
-        let dist_y = Normal::new(latitude as f32, self.std_dev).expect("cannot create normal dist");
+        let dist_x = Normal::new(longitude, self.std_dev).expect("cannot create normal dist");
+        let dist_y = Normal::new(latitude,  self.std_dev).expect("cannot create normal dist");
         let lon = dist_x.sample(rng);
         let lat = dist_y.sample(rng);
         Location { longitude: lon, latitude: lat }
@@ -279,6 +353,6 @@ async fn main() {
 
     if let Some(fname) = cli.html {
         let mut out = File::create(fname).unwrap();
-        out.write_all(tsp.visualisation_text(cli.zoom).as_bytes()).unwrap();
+        out.write_all(tsp.visualisation_text().await.as_bytes()).unwrap();
     }
 }
