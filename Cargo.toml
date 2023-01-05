@@ -1,5 +1,5 @@
 [package]
-name = "tspgen"
+name    = "tsptools"
 version = "0.1.0"
 edition = "2021"
 description = "Generates clustered TSP instances"
@@ -15,4 +15,5 @@ tokio          = {version = "1.0", features = ["rt-multi-thread", "macros"]}
 futures        = "0.3"
 osrm_client    = { path = "../osrm_client" }
 handlebars     = "4.3"
+serde          = "1.0"
 serde_json     = "1.0"
