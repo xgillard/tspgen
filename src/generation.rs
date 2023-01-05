@@ -45,6 +45,9 @@ pub struct GenerateInstance {
     /// Force all destinations to be routable (takes longer to generate an instance)
     #[clap(short, long)]
     pub force_routable: bool,
+    /// Base the distance matrix on duration rather than distance
+    #[clap(short='D', long)]
+    pub duration: bool,
 
     /// Name of the file where to generate the tsp instance
     #[clap(short, long)]
@@ -188,8 +191,14 @@ impl GenerateInstance {
             .unwrap();
 
         let mut result = vec![];
-        for line in matrix.durations.unwrap().iter() {
-            result.push(line.iter().map(|x| x.unwrap()).collect());
+        if self.duration {
+            for line in matrix.durations.unwrap().iter() {
+                result.push(line.iter().map(|x| x.unwrap()).collect());
+            }
+        } else {
+            for line in matrix.distances.unwrap().iter() {
+                result.push(line.iter().map(|x| x.unwrap()).collect());
+            }
         }
         result
     }
