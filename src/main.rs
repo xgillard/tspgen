@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use generation::GenerateInstance;
+use resolution::Solve;
 use visualisation::Visualize;
 
 
@@ -25,7 +26,8 @@ struct TspTools {
 #[derive(Debug, Subcommand)]
 enum Command {
     Generate(GenerateInstance),
-    Visualize(Visualize)
+    Visualize(Visualize),
+    Solve(Solve)
 }
 
 #[tokio::main]
@@ -34,5 +36,6 @@ async fn main() {
     match cli.command {
         Command::Generate(generate) => generate.execute().await,
         Command::Visualize(visualize) => visualize.execute().await,
+        Command::Solve(solve) => solve.execute().await
     }
 }
