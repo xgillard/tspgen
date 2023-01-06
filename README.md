@@ -1,22 +1,20 @@
-# tspgen
+# tsptools
 
 A generator of clustered TSP instances.
 
 ## Usage 
 
 ```
-Generates clustered TSP instances
+Usage: tsptools <COMMAND>
 
-Usage: tspgen [OPTIONS]
+Commands:
+  generate   TspGen is a generator for realistic TSP instances where the cities to visit are gouped in clusters
+  visualize  This command lets you generate an html file to visualize a given instance and an optional solution
+  help       Print this message or the help of the given subcommand(s)
 
 Options:
-  -n, --nb-cities <NB_CITIES>        The number of cities that must be visited [default: 10]
-  -c, --nb-centroids <NB_CENTROIDS>  The number of centroids that must be visited [default: 3]
-  -m, --max <MAX>                    The maximum width of the generated map [default: 1000]
-  -d, --std-dev <STD_DEV>            The std deviation between a city and its centroid [default: 10]
-  -s, --seed <SEED>                  An optional seed to kickstart the instance generation
-  -h, --help                         Print help information
-  -V, --version                      Print version information
+  -h, --help     Print help information
+  -V, --version  Print version information
 ```
 
 ## Build

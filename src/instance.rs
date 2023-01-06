@@ -14,6 +14,7 @@ pub struct Instance {
 impl Instance {
     /// Generates a string corresponding a description of the instance in the form 
     /// which is usually used to encode TSP instances
+    #[allow(dead_code)]
     pub fn instance_text(&self) -> String {
         let mut result = String::new();
         result.push_str("c This instance has been generated with tspgen \n");

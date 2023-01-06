@@ -28,7 +28,7 @@ impl Visualize {
         
         let html = if let Some(solution) = self.solution.as_ref() {
             let client = osrm_client::Client::default();
-            let solution = solution.split_whitespace().into_iter().map(|tok| tok.parse::<usize>().unwrap()).collect();
+            let solution = solution.split_whitespace().into_iter().map(|tok| tok.parse::<usize>().unwrap()).collect::<Vec<_>>();
             let route = self.solution_route(&client, &instance, &solution).await;
             self.visualize_solution(&instance, &route).await
         } else {
@@ -42,7 +42,7 @@ impl Visualize {
         }
     }
 
-    async fn solution_route(&self, client: &Client, instance: &Instance, solution: &Vec<usize>) -> Route {
+    async fn solution_route(&self, client: &Client, instance: &Instance, solution: &[usize]) -> Route {
         let path = solution.iter().copied()
                 .map(|i| instance.destinations[i])
                 .collect();
