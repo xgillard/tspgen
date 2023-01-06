@@ -6,6 +6,7 @@ use visualisation::Visualize;
 mod instance;
 mod generation;
 mod visualisation;
+mod resolution;
 
 /// TspGen is a generator for realistic TSP instances where the cities to visit are gouped in clusters.
 /// 

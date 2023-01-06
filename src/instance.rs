@@ -1,3 +1,7 @@
+//! This module defines an abstract representation of a TSP instance. It provides
+//! a set of locations along with a metric "distance" (time or distance) to reach
+//! each location from each other.
+
 use osrm_client::{Location, GeoJsonGeometry, GeoJsonPoint};
 use serde::{Serialize, Deserialize};
 

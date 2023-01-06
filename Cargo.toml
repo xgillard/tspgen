@@ -17,3 +17,6 @@ osrm_client    = { path = "../osrm_client" }
 handlebars     = "4.3"
 serde          = "1.0"
 serde_json     = "1.0"
+
+ddo            = "1.0"
+clustering     = "0.1"

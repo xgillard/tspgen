@@ -1,7 +1,10 @@
+//! This module comprises all utilities that are required to generate a random TSP instance
+//! between places in the real world.
+
 use std::{time::{SystemTime, UNIX_EPOCH}, fs::File, io::Write};
 
 use clap::Args;
-use osrm_client::{Location, NearestRequestBuilder, TableRequestBuilder, TableAnnotationRequest};
+use osrm_client::{Location, NearestRequestBuilder, TableRequestBuilder, TableAnnotationRequest, Client};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaChaRng;
 use rand_distr::{Uniform, Normal, Distribution};
@@ -52,12 +55,21 @@ pub struct GenerateInstance {
     /// Name of the file where to generate the tsp instance
     #[clap(short, long)]
     pub output: Option<String>,
+
+    /// URL of the osrm server to use (optional)
+    #[clap(short, long)]
+    pub url_osrm: Option<String>,
 }
 
 impl GenerateInstance {
     /// Executes this command
     pub async fn execute(&self) {
-        let instance  = self.generate().await;
+        let mut client = osrm_client::Client::default();
+        if let Some(url) = self.url_osrm.as_ref() {
+            client = client.base_url(url.clone());
+        }
+
+        let instance  = self.generate(&client).await;
         let instance = serde_json::to_string_pretty(&instance).unwrap();
 
         if let Some(output) = self.output.as_ref() {
@@ -68,16 +80,16 @@ impl GenerateInstance {
     }
 
     /// This is the method you want to call in order to generate a clustered TSP instance
-    pub async fn generate(&self) -> Instance {
+    pub async fn generate(&self, client: &Client) -> Instance {
         let mut rng = self.rng();
         let centroids = self.generate_centroids(&mut rng);
-        let centroids = self.routable_cities(&centroids).await;
+        let centroids = self.routable_cities(client, &centroids).await;
         let mut destinations = self.generate_cities(&mut rng, &centroids);
         if self.force_routable {
-            destinations = self.routable_cities(&destinations).await;
+            destinations = self.routable_cities(client, &destinations).await;
         }
 
-        let distances = self.travel_distance_matrix(&destinations).await;
+        let distances = self.travel_cost_matrix(client, &destinations).await;
 
         Instance{
             destinations,
@@ -102,6 +114,7 @@ impl GenerateInstance {
         }
         centroids
     }
+
     /// This method returns a new random centroid uniformly sampled from 0..max
     fn random_centroid(&self, rng: &mut impl Rng) -> Location {
         //
@@ -111,6 +124,7 @@ impl GenerateInstance {
         let latitude = lat_dist.sample(rng);
         Location { longitude, latitude }
     }
+
     /// This method returns a vector of random cities close to the centroids
     fn generate_cities(&self, rng: &mut impl Rng, centroids: &[Location]) -> Vec<Location> {
         let cities_per_centroids = self.nb_cities / self.nb_centroids;
@@ -129,6 +143,7 @@ impl GenerateInstance {
         }
         cities
     }
+
     /// This method returns a new city close to the given centroid
     fn random_pos_close_to(&self, rng: &mut impl Rng, Location{longitude, latitude}: Location) -> Location {
         let dist_x = Normal::new(longitude, self.std_dev).expect("cannot create normal dist");
@@ -138,31 +153,8 @@ impl GenerateInstance {
         Location { longitude: lon, latitude: lat }
     }
     
-    // /// This method returns the euclidian distance between two cities
-    // fn euclidian_distance(&self, a: Location, b: Location) -> f32 {
-    //     let dx = a.longitude - b.longitude;
-    //     let dy = a.latitude - b.latitude;
-    //     let dx = dx * dx;
-    //     let dy = dy * dy;
-    // 
-    //     (dx + dy).sqrt()
-    // }
-    // 
-    // fn euclidian_distance_matrix(&self, cities: &[Location]) -> Vec<Vec<f32>> {
-    //     let mut result = vec![];
-    //     for a in cities.iter().copied() {
-    //         let mut line = vec![];
-    //         for b in cities.iter().copied() {
-    //             line.push(self.euclidian_distance(a, b));
-    //         }
-    //         result.push(line);
-    //     }
-    //     result
-    // }
-
-    async fn routable_cities(&self, locations: &[Location]) -> Vec<Location> {
-        let client = osrm_client::Client::default();
-        
+    /// This method maps a set of location to the nearset routable point on the map.
+    async fn routable_cities(&self, client: &Client, locations: &[Location]) -> Vec<Location> {
         let mut out = vec![];
         for loc in locations {
             let rsp = NearestRequestBuilder::default()
@@ -179,9 +171,11 @@ impl GenerateInstance {
         out
     }
 
-    async fn travel_distance_matrix(&self, locations: &[Location]) -> Vec<Vec<f32>>{
-        let client = osrm_client::Client::default();
-
+    /// This method computes the travel cost matrix between all the given locations. Depending
+    /// on the 'duration' flag, this method will either return a matrix of durations (in seconds) 
+    /// to reach each location from each other; or it will return the actual distance that is going 
+    /// to be travelled (in metres).
+    async fn travel_cost_matrix(&self, client: &Client, locations: &[Location]) -> Vec<Vec<f32>>{
         let matrix = TableRequestBuilder::default()
             .coordinates(osrm_client::Coordinates::Multi(Vec::from_iter(locations.iter().copied())))
             .annotations(TableAnnotationRequest::Both)
