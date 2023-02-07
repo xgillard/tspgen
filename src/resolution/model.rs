@@ -97,6 +97,7 @@ impl Relaxation for TspRelax {
             depth = depth.max(state.depth);
             curr  = curr.union(state.current);
             must  = must.inter(state.must_visit);
+            might = might.union(state.must_visit); 
             might = might.union(state.might_visit); 
         }
 
