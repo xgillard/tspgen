@@ -127,16 +127,14 @@ impl GenerateInstance {
 
     /// This method returns a vector of random cities close to the centroids
     fn generate_cities(&self, rng: &mut impl Rng, centroids: &[Location]) -> Vec<Location> {
-        let cities_per_centroids = self.nb_cities / self.nb_centroids;
-        let cities_in_first_centroid = if cities_per_centroids * self.nb_centroids == self.nb_cities {
-            cities_per_centroids
-        } else {
-            cities_per_centroids + 1
-        };
+        let mut cities_per_centroids = vec![self.nb_cities / self.nb_centroids; self.nb_centroids];
+        for i in 0..(self.nb_cities % self.nb_centroids) {
+            cities_per_centroids[i] += 1;
+        }
 
         let mut cities = vec![];
         for (i, centroid) in centroids.iter().copied().enumerate() {
-            let n = if i == 0 {cities_in_first_centroid} else {cities_per_centroids};
+            let n = cities_per_centroids[i];
             for _ in 0..n {
                 cities.push(self.random_pos_close_to(rng, centroid));
             }
